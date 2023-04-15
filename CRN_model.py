@@ -1,7 +1,8 @@
 # Copyright (c) 2020, Ioana Bica
 
 import tensorflow as tf
-from tensorflow.contrib.rnn import LSTMCell, DropoutWrapper
+# from tensorflow.contrib.rnn import LSTMCell, DropoutWrapper
+from tensorflow.compat.v1.nn.rnn_cell import DropoutWrapper, LSTMCell
 from tensorflow.python.ops import rnn
 
 from utils.flip_gradient import flip_gradient
@@ -28,21 +29,21 @@ class CRN_Model:
 
         self.b_train_decoder = b_train_decoder
 
-        tf.reset_default_graph()
+        tf.compat.v1.reset_default_graph()
 
-        self.current_covariates = tf.placeholder(tf.float32, [None, self.max_sequence_length, self.num_covariates])
+        self.current_covariates = tf.compat.v1.placeholder(tf.float32, [None, self.max_sequence_length, self.num_covariates])
 
         # Initial previous treatment needs to consist of zeros (this is done when building the feed dictionary)
-        self.previous_treatments = tf.placeholder(tf.float32, [None, self.max_sequence_length, self.num_treatments])
-        self.current_treatments = tf.placeholder(tf.float32, [None, self.max_sequence_length, self.num_treatments])
-        self.outputs = tf.placeholder(tf.float32, [None, self.max_sequence_length, self.num_outputs])
-        self.active_entries = tf.placeholder(tf.float32, [None, self.max_sequence_length, self.num_outputs])
+        self.previous_treatments = tf.compat.v1.placeholder(tf.float32, [None, self.max_sequence_length, self.num_treatments])
+        self.current_treatments = tf.compat.v1.placeholder(tf.float32, [None, self.max_sequence_length, self.num_treatments])
+        self.outputs = tf.compat.v1.placeholder(tf.float32, [None, self.max_sequence_length, self.num_outputs])
+        self.active_entries = tf.compat.v1.placeholder(tf.float32, [None, self.max_sequence_length, self.num_outputs])
 
         self.init_state = None
         if (self.b_train_decoder):
-            self.init_state = tf.placeholder(tf.float32, [None, self.rnn_hidden_units])
+            self.init_state = tf.compat.v1.placeholder(tf.float32, [None, self.rnn_hidden_units])
 
-        self.alpha = tf.placeholder(tf.float32, [])  # Gradient reversal scalar
+        self.alpha = tf.compat.v1.placeholder(tf.float32, [])  # Gradient reversal scalar
 
     def build_balancing_representation(self):
         self.rnn_input = tf.concat([self.current_covariates, self.previous_treatments], axis=-1)
@@ -67,16 +68,16 @@ class CRN_Model:
 
         # Flatten to apply same weights to all time steps.
         rnn_output = tf.reshape(rnn_output, [-1, self.rnn_hidden_units])
-        balancing_representation = tf.layers.dense(rnn_output, self.br_size, activation=tf.nn.elu)
+        balancing_representation = tf.compat.v1.layers.dense(rnn_output, self.br_size, activation=tf.nn.elu)
 
         return balancing_representation
 
     def build_treatment_assignments_one_hot(self, balancing_representation):
         balancing_representation_gr = flip_gradient(balancing_representation, self.alpha)
 
-        treatments_network_layer = tf.layers.dense(balancing_representation_gr, self.fc_hidden_units,
+        treatments_network_layer = tf.compat.v1.layers.dense(balancing_representation_gr, self.fc_hidden_units,
                                                    activation=tf.nn.elu)
-        treatment_logit_predictions = tf.layers.dense(treatments_network_layer, self.num_treatments, activation=None)
+        treatment_logit_predictions = tf.compat.v1.layers.dense(treatments_network_layer, self.num_treatments, activation=None)
         treatment_prob_predictions = tf.nn.softmax(treatment_logit_predictions)
 
         return treatment_prob_predictions
@@ -85,9 +86,9 @@ class CRN_Model:
         current_treatments_reshape = tf.reshape(self.current_treatments, [-1, self.num_treatments])
 
         outcome_network_input = tf.concat([balancing_representation, current_treatments_reshape], axis=-1)
-        outcome_network_layer = tf.layers.dense(outcome_network_input, self.fc_hidden_units,
+        outcome_network_layer = tf.compat.v1.layers.dense(outcome_network_input, self.fc_hidden_units,
                                                     activation=tf.nn.elu)
-        outcome_predictions = tf.layers.dense(outcome_network_layer, self.num_outputs, activation=None)
+        outcome_predictions = tf.compat.v1.layers.dense(outcome_network_layer, self.num_outputs, activation=None)
 
         return outcome_predictions
 
@@ -106,14 +107,14 @@ class CRN_Model:
         # Setup tensorflow
         tf_device = 'gpu'
         if tf_device == "cpu":
-            tf_config = tf.ConfigProto(log_device_placement=False, device_count={'GPU': 0})
+            tf_config = tf.compat.v1.ConfigProto(log_device_placement=False, device_count={'GPU': 0})
         else:
-            tf_config = tf.ConfigProto(log_device_placement=False, device_count={'GPU': 1})
+            tf_config = tf.compat.v1.ConfigProto(log_device_placement=False, device_count={'GPU': 1})
             tf_config.gpu_options.allow_growth = True
 
-        self.sess = tf.Session(config=tf_config)
-        self.sess.run(tf.global_variables_initializer())
-        self.sess.run(tf.local_variables_initializer())
+        self.sess = tf.compat.v1.Session(config=tf_config)
+        self.sess.run(tf.compat.v1.global_variables_initializer())
+        self.sess.run(tf.compat.v1.local_variables_initializer())
 
         for epoch in range(self.num_epochs):
             p = float(epoch) / float(self.num_epochs)
@@ -159,13 +160,13 @@ class CRN_Model:
 
         tf_device = 'gpu'
         if tf_device == "cpu":
-            tf_config = tf.ConfigProto(log_device_placement=False, device_count={'GPU': 0})
+            tf_config = tf.compat.v1.ConfigProto(log_device_placement=False, device_count={'GPU': 0})
         else:
-            tf_config = tf.ConfigProto(log_device_placement=False, device_count={'GPU': 1})
+            tf_config = tf.compat.v1.ConfigProto(log_device_placement=False, device_count={'GPU': 1})
             tf_config.gpu_options.allow_growth = True
 
-        self.sess = tf.Session(config=tf_config)
-        self.sess.run(tf.global_variables_initializer())
+        self.sess = tf.compat.v1.Session(config=tf_config)
+        self.sess.run(tf.compat.v1.global_variables_initializer())
         checkpoint_name = model_name + "_final"
         self.load_network(self.sess, model_folder, checkpoint_name)
 
@@ -409,7 +410,7 @@ class CRN_Model:
     def compute_loss_treatments_one_hot(self, target_treatments, treatment_predictions, active_entries):
         treatment_predictions = tf.reshape(treatment_predictions, [-1, self.max_sequence_length, self.num_treatments])
         cross_entropy_loss = tf.reduce_sum(
-            (- target_treatments * tf.log(treatment_predictions + 1e-8)) * active_entries) \
+            (- target_treatments * tf.math.log(treatment_predictions + 1e-8)) * active_entries) \
                              / tf.reduce_sum(active_entries)
         return cross_entropy_loss
 
@@ -439,7 +440,7 @@ class CRN_Model:
         return mses
 
     def get_optimizer(self):
-        optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
+        optimizer = tf.compat.v1.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
         return optimizer
 
     def compute_sequence_length(self, sequence):
@@ -450,9 +451,9 @@ class CRN_Model:
         return length
 
     def save_network(self, tf_session, model_dir, checkpoint_name):
-        saver = tf.train.Saver(max_to_keep=100000)
+        saver = tf.compat.v1.train.Saver(max_to_keep=100000)
         vars = 0
-        for v in tf.global_variables():
+        for v in tf.compat.v1.global_variables():
             vars += np.prod(v.get_shape().as_list())
 
         save_path = saver.save(tf_session, os.path.join(model_dir, "{0}.ckpt".format(checkpoint_name)))
@@ -462,5 +463,5 @@ class CRN_Model:
         load_path = os.path.join(model_dir, "{0}.ckpt".format(checkpoint_name))
         logging.info('Restoring model from {0}'.format(load_path))
 
-        saver = tf.train.Saver()
+        saver = tf.compat.v1.train.Saver()
         saver.restore(tf_session, load_path)
